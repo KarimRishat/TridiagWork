@@ -7,7 +7,7 @@ namespace TriDiagSolve
 {
 	class TriDiagSolver
 	{
-        std::vector<double> a, b, c, d, u;
+        std::vector<double> alpha, beta, gamma, rhs, u;
 
         size_t N;
 
@@ -28,7 +28,10 @@ namespace TriDiagSolve
             return (9 + sin(x)) * sin(3 * x);
         }
 
-        std::vector<double> TriDiagDefault() {
+        std::vector<double> TriDiagDefault(std::vector<double> a, 
+            std::vector<double>b,
+            std::vector<double>c,
+            std::vector<double>d) {
 
             // Temporary arrays to store modified coefficients
             std::vector<double> cPrime(N+1), dPrime(N+1);
@@ -63,30 +66,30 @@ namespace TriDiagSolve
 
             u_b = RealFunc(end_line);
 
-            a.reserve(N + 1); b.reserve(N + 1); c.reserve(N + 1); d.reserve(N + 1);
+            alpha.reserve(N + 1); beta.reserve(N + 1); gamma.reserve(N + 1); rhs.reserve(N + 1);
 
             u.reserve(N + 1); u.push_back(u_a);
 
-            a.push_back(0.0); c.push_back(0.0); b.push_back(1.0); d.push_back(u_a);
+            alpha.push_back(0.0); gamma.push_back(0.0); beta.push_back(1.0); rhs.push_back(u_a);
 
             double xi = start_line;
 
             for (size_t i = 1; i < N; ++i)
             {
-                a.push_back(1.0); c.push_back(1.0);
+                alpha.push_back(1.0); gamma.push_back(1.0);
 
                 xi += h;
 
-                b.push_back(2 + h * h * qCoef(xi));
+                beta.push_back(2 + h * h * qCoef(xi));
 
-                d.push_back(h * h * fCoef(xi));
+                rhs.push_back(h * h * fCoef(xi));
 
                 u.push_back(RealFunc(xi));
             }
 
             u.push_back(u_b);
 
-            a.push_back(0.0); c.push_back(0.0); b.push_back(1.0); d.push_back(u_b);
+            alpha.push_back(0.0); gamma.push_back(0.0); beta.push_back(1.0); rhs.push_back(u_b);
 
         }
 
@@ -104,7 +107,7 @@ namespace TriDiagSolve
         {
             double maxNorm = 0.0;
 
-            std::vector<double> y{TriDiagDefault()};
+            std::vector<double> y{TriDiagDefault(alpha,beta,gamma,rhs)};
 
             double norm;
 
@@ -117,10 +120,10 @@ namespace TriDiagSolve
             return maxNorm;
         }
 
-        /*std::vector<double> ParamSolve()
+        std::vector<double> ParamSolve()
         {
 
-        }*/
+        }
 
 
 	};
