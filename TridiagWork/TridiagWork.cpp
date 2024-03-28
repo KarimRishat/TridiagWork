@@ -4,6 +4,10 @@ using namespace TriDiagSolve;
 
 int main()
 {
-    TriDiagSolver s{};
-    std::cout << s.DefaultSolveNorm();
+
+	TriDiagSolver s{};
+
+	//std::cout<<s.DefaultSolveNorm();
+
+	std::cout << s.ParamSolveNorm(5);
 }

@@ -28,30 +28,32 @@ namespace TriDiagSolve
             return (9 + sin(x)) * sin(3 * x);
         }
 
-        std::vector<double> TriDiagDefault(std::vector<double> a, 
-            std::vector<double>b,
-            std::vector<double>c,
-            std::vector<double>d) {
+        std::vector<double> TriDiagDefault(std::vector<double>& a, 
+            std::vector<double>& b,
+            std::vector<double>& c,
+            std::vector<double>& d) {
+
+            size_t n = a.size();
 
             // Temporary arrays to store modified coefficients
-            std::vector<double> cPrime(N+1), dPrime(N+1);
+            std::vector<double> cPrime(n), dPrime(n);
 
             // Forward sweep
             cPrime[0] = c[0] / b[0];
             dPrime[0] = d[0] / b[0];
             double m;
-            for (size_t i = 1; i < N+1; ++i) {
+            for (size_t i = 1; i < n; ++i) {
                 m = 1.0 / (b[i] - a[i] * cPrime[i - 1]);
                 cPrime[i] = c[i] * m;
                 dPrime[i] = (d[i] + a[i] * dPrime[i - 1]) * m;
             }
 
             // Back substitution
-            std::vector<double> x(N+1);
+            std::vector<double> x(n);
 
-            x[N] = dPrime[N];
+            x[n - 1] = dPrime[n - 1];
 
-            for (int i = N - 1; i >= 0; --i) {
+            for (int i = n - 2; i >= 0; --i) {
                 x[i] = cPrime[i] * x[i + 1] + dPrime[i];
             }
 
@@ -93,12 +95,124 @@ namespace TriDiagSolve
 
         }
 
+        void FillAdditionalCoefs(size_t m, size_t p,
+            std::vector<std::vector<double>>& nu, 
+            std::vector<std::vector<double>>& z,
+            std::vector<std::vector<double>>& w)
+        {
+            for (size_t mu = 0; mu < p; ++mu)
+            {
+                std::vector<double> a_mu(alpha.begin() + mu * m, alpha.begin() + m + 1 + mu * m);
+
+                std::vector<double> b_mu(beta.begin() + mu * m, beta.begin() + m + 1 + mu * m);
+
+                std::vector<double> c_mu(gamma.begin() + mu * m, gamma.begin() + m + 1 + mu * m);
+
+                std::vector<double> f_mu(rhs.begin() + mu * m, rhs.begin() + m + 1 + mu * m);
+
+                std::vector<double> f_zero(f_mu.size(), 0.0);
+
+                a_mu[0] = 0.0; b_mu[0] = 1.0; c_mu[0] = 0.0; f_mu[0] = 0.0;
+
+                a_mu.back() = 0.0; b_mu.back() = 1.0; c_mu.back() = 0.0; f_mu.back() = 0;
+
+                f_zero[0] = 1.0;
+
+                nu.push_back(TriDiagDefault(a_mu, b_mu, c_mu, f_zero));
+
+                f_zero[0] = 0.0; f_zero.back() = 1.0;
+
+                z.push_back(TriDiagDefault(a_mu, b_mu, c_mu, f_zero));
+
+                w.push_back(TriDiagDefault(a_mu, b_mu, c_mu, f_mu));
+
+            }
+        }
+
+        void FillParamCoefs(size_t m, size_t p, 
+            std::vector<double>& a,
+            std::vector<double>& b,
+            std::vector<double>& c,
+            std::vector<double>& d,
+            std::vector<std::vector<double>>& nu,
+            std::vector<std::vector<double>>& z,
+            std::vector<std::vector<double>>& w)
+        {
+            a.push_back(alpha[0]); b.push_back(beta[0]); c.push_back(gamma[0]); d.push_back(rhs[0]);
+
+            double value, pos;
+
+            for (size_t mu = 1; mu < p; ++mu)
+            {
+                pos = mu * m;
+                value = alpha[pos] * nu[mu - 1][m - 1];
+                a.push_back(value);
+                value = beta[pos] - alpha[pos] * z[mu - 1][m - 1] - gamma[pos] * nu[mu][1];
+                b.push_back(value);
+                value = gamma[pos] * z[mu][1];
+                c.push_back(value);
+                value = rhs[pos] + alpha[pos] * w[mu - 1][m - 1] + gamma[pos] * w[mu][1];
+                d.push_back(value);
+            }
+
+            a.push_back(alpha.back()); b.push_back(beta.back()); 
+            c.push_back(gamma.back()); d.push_back(rhs.back());
+
+
+
+        }
+
+
+
+        std::vector<double> FindSolution(size_t m, size_t p,
+            std::vector<std::vector<double>>& nu,
+            std::vector<std::vector<double>>& z,
+            std::vector<std::vector<double>>& w,
+            std::vector<double>& x_par)
+        {
+            std::vector<double> x;
+            x.reserve(m * p);
+            double value;
+            for (size_t mu = 0; mu < p; mu++)
+            {
+                for (size_t j = 0; j < m; j++)
+                {
+                    value = nu[mu][j] * x_par[mu] + z[mu][j] * x_par[mu + 1] + w[mu][j];
+                    x.push_back(value);
+                }
+            }
+            x.push_back(x_par.back());
+
+            return x;
+        }
+
+        std::vector<double> ParamSolve(size_t p)
+        {
+            size_t m = N / p;
+
+            std::vector<std::vector<double>> nu, z, w;
+
+            FillAdditionalCoefs(m, p, nu, z, w);
+
+            std::vector<double> a, b, c, d;
+
+            a.reserve(p), b.reserve(p); c.reserve(p); d.reserve(p);
+
+            FillParamCoefs(m, p, a, b, c, d, nu, z, w);
+
+            std::vector<double> x_par = TriDiagDefault(a, b, c, d);
+
+            std::vector<double> solution = FindSolution(m, p, nu, z, w, x_par);
+
+            return solution;
+
+        }
 
 
 
     public:
 
-        TriDiagSolver() : N{ 1000 }, start_line{ 0.0 }, end_line{PI}
+        TriDiagSolver() : N{ 100 }, start_line{ 0.0 }, end_line{PI}
         {
             FillCoefs();
         }
@@ -120,10 +234,27 @@ namespace TriDiagSolve
             return maxNorm;
         }
 
-        std::vector<double> ParamSolve()
-        {
+        
 
+        double ParamSolveNorm(size_t p)
+        {
+            double maxNorm = 0.0;
+
+            std::vector<double> y{ TriDiagDefault(alpha,beta,gamma,rhs) };
+
+            double norm;
+
+            std::vector<double> y_p{ ParamSolve(p) };
+
+            for (size_t i = 0; i < N + 1; ++i)
+            {
+                norm = abs(y[i] - y_p[i]);
+                if (norm > maxNorm) maxNorm = norm;
+            }
+
+            return maxNorm;
         }
+
 
 
 	};
