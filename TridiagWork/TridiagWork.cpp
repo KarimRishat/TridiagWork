@@ -9,5 +9,5 @@ int main()
 
 	//std::cout<<s.DefaultSolveNorm();
 
-	std::cout << s.ParamSolveNorm(5);
+	std::cout << s.ParamSolveNorm(4);
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <omp.h>
 #define PI 3.141592653589793
 
 
@@ -118,13 +119,13 @@ namespace TriDiagSolve
 
                 f_zero[0] = 1.0;
 
-                nu.push_back(TriDiagDefault(a_mu, b_mu, c_mu, f_zero));
+                nu[mu] = (TriDiagDefault(a_mu, b_mu, c_mu, f_zero));
 
                 f_zero[0] = 0.0; f_zero.back() = 1.0;
 
-                z.push_back(TriDiagDefault(a_mu, b_mu, c_mu, f_zero));
+                z[mu] = (TriDiagDefault(a_mu, b_mu, c_mu, f_zero));
 
-                w.push_back(TriDiagDefault(a_mu, b_mu, c_mu, f_mu));
+                w[mu] = (TriDiagDefault(a_mu, b_mu, c_mu, f_mu));
 
             }
         }
@@ -138,25 +139,24 @@ namespace TriDiagSolve
             std::vector<std::vector<double>>& z,
             std::vector<std::vector<double>>& w)
         {
-            a.push_back(alpha[0]); b.push_back(beta[0]); c.push_back(gamma[0]); d.push_back(rhs[0]);
-
-            double value, pos;
+            a[0] = (alpha[0]); b[0] = (beta[0]); c[0] = (gamma[0]); d[0] = (rhs[0]);
 
             for (size_t mu = 1; mu < p; ++mu)
             {
+                double value, pos;
                 pos = mu * m;
                 value = alpha[pos] * nu[mu - 1][m - 1];
-                a.push_back(value);
+                a[mu] = (value);
                 value = beta[pos] - alpha[pos] * z[mu - 1][m - 1] - gamma[pos] * nu[mu][1];
-                b.push_back(value);
+                b[mu] = (value);
                 value = gamma[pos] * z[mu][1];
-                c.push_back(value);
+                c[mu] = (value);
                 value = rhs[pos] + alpha[pos] * w[mu - 1][m - 1] + gamma[pos] * w[mu][1];
-                d.push_back(value);
+                d[mu] = (value);
             }
 
-            a.push_back(alpha.back()); b.push_back(beta.back()); 
-            c.push_back(gamma.back()); d.push_back(rhs.back());
+            a[p] = (alpha.back()); b[p] = (beta.back());
+            c[p] = (gamma.back()); d[p] = (rhs.back());
 
 
 
@@ -172,9 +172,10 @@ namespace TriDiagSolve
         {
             std::vector<double> x;
             x.reserve(m * p);
-            double value;
+#pragma omp parallel for
             for (size_t mu = 0; mu < p; mu++)
             {
+                double value;
                 for (size_t j = 0; j < m; j++)
                 {
                     value = nu[mu][j] * x_par[mu] + z[mu][j] * x_par[mu + 1] + w[mu][j];
@@ -190,13 +191,13 @@ namespace TriDiagSolve
         {
             size_t m = N / p;
 
-            std::vector<std::vector<double>> nu, z, w;
+            std::vector<std::vector<double>> nu(m), z(m), w(m);
 
             FillAdditionalCoefs(m, p, nu, z, w);
 
-            std::vector<double> a, b, c, d;
+            std::vector<double> a(p + 1), b(p + 1), c(p + 1), d(p + 1);
 
-            a.reserve(p), b.reserve(p); c.reserve(p); d.reserve(p);
+            //a.reserve(p), b.reserve(p); c.reserve(p); d.reserve(p);
 
             FillParamCoefs(m, p, a, b, c, d, nu, z, w);
 
@@ -212,7 +213,7 @@ namespace TriDiagSolve
 
     public:
 
-        TriDiagSolver() : N{ 100 }, start_line{ 0.0 }, end_line{PI}
+        TriDiagSolver() : N{ 16 }, start_line{ 0.0 }, end_line{PI}
         {
             FillCoefs();
         }
