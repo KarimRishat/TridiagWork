@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <omp.h>
+#include <chrono>
 #define PI 3.141592653589793
 
 
@@ -101,7 +102,9 @@ namespace TriDiagSolve
             std::vector<std::vector<double>>& z,
             std::vector<std::vector<double>>& w)
         {
-            for (size_t mu = 0; mu < p; ++mu)
+            omp_set_num_threads(p);
+#pragma omp parallel for shared(nu, z, w) default(none)
+            for (int mu = 0; mu < p; ++mu)
             {
                 std::vector<double> a_mu(alpha.begin() + mu * m, alpha.begin() + m + 1 + mu * m);
 
@@ -139,9 +142,11 @@ namespace TriDiagSolve
             std::vector<std::vector<double>>& z,
             std::vector<std::vector<double>>& w)
         {
+            omp_set_num_threads(p);
             a[0] = (alpha[0]); b[0] = (beta[0]); c[0] = (gamma[0]); d[0] = (rhs[0]);
 
-            for (size_t mu = 1; mu < p; ++mu)
+#pragma omp parallel for shared(a, b, c, d, nu, z, w) default(none)
+            for (int mu = 1; mu < p; ++mu)
             {
                 double value, pos;
                 pos = mu * m;
@@ -170,16 +175,24 @@ namespace TriDiagSolve
             std::vector<std::vector<double>>& w,
             std::vector<double>& x_par)
         {
+            omp_set_num_threads(p);
             std::vector<double> x;
             x.reserve(m * p);
-#pragma omp parallel for
-            for (size_t mu = 0; mu < p; mu++)
+#pragma omp parallel for shared(nu, z, w, x_par, x) default(none) schedule(static)
+            for (int mu = 0; mu < p; mu++)
             {
+                int id = omp_get_thread_num();
+                std::vector<double> local_x;
+                local_x.reserve(m);
                 double value;
                 for (size_t j = 0; j < m; j++)
                 {
                     value = nu[mu][j] * x_par[mu] + z[mu][j] * x_par[mu + 1] + w[mu][j];
-                    x.push_back(value);
+                    local_x.push_back(value);
+                }
+#pragma omp critical
+                {
+                    x.insert(x.end(), local_x.begin(), local_x.end());
                 }
             }
             x.push_back(x_par.back());
@@ -239,6 +252,7 @@ namespace TriDiagSolve
 
         double ParamSolveNorm(size_t p)
         {
+
             double maxNorm = 0.0;
 
             std::vector<double> y{ TriDiagDefault(alpha,beta,gamma,rhs) };
