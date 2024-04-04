@@ -178,21 +178,23 @@ namespace TriDiagSolve
             omp_set_num_threads(p);
             std::vector<double> x;
             x.reserve(m * p);
-#pragma omp parallel for shared(nu, z, w, x_par, x) default(none) schedule(static)
-            for (int mu = 0; mu < p; mu++)
+#pragma omp parallel shared(nu, z, w, x_par, x) default(none) 
             {
-                int id = omp_get_thread_num();
-                std::vector<double> local_x;
-                local_x.reserve(m);
-                double value;
-                for (size_t j = 0; j < m; j++)
+#pragma omp for schedule(static) ordered
+                for (int mu = 0; mu < p; mu++)
                 {
-                    value = nu[mu][j] * x_par[mu] + z[mu][j] * x_par[mu + 1] + w[mu][j];
-                    local_x.push_back(value);
-                }
-#pragma omp critical
-                {
-                    x.insert(x.end(), local_x.begin(), local_x.end());
+                    std::vector<double> local_x;
+                    local_x.reserve(m);
+                    double value;
+                    for (size_t j = 0; j < m; j++)
+                    {
+                        value = nu[mu][j] * x_par[mu] + z[mu][j] * x_par[mu + 1] + w[mu][j];
+                        local_x.push_back(value);
+                    }
+#pragma omp ordered
+                    {
+                        x.insert(x.end(), local_x.begin(), local_x.end());
+                    }
                 }
             }
             x.push_back(x_par.back());
@@ -226,7 +228,7 @@ namespace TriDiagSolve
 
     public:
 
-        TriDiagSolver() : N{ 16 }, start_line{ 0.0 }, end_line{PI}
+        TriDiagSolver() : N{ 4096 }, start_line{ 0.0 }, end_line{PI}
         {
             FillCoefs();
         }
@@ -259,7 +261,16 @@ namespace TriDiagSolve
 
             double norm;
 
+            auto start_time = std::chrono::high_resolution_clock::now();
+
             std::vector<double> y_p{ ParamSolve(p) };
+
+            auto end_time = std::chrono::high_resolution_clock::now();
+
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+
+            std::cout << "ParamSolve execution time with ("<<p<<")threads: " << duration.count() << " microseconds" << std::endl;
+
 
             for (size_t i = 0; i < N + 1; ++i)
             {
